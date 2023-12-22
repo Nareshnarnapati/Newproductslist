@@ -1,106 +1,70 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const searchInput = document.getElementById('search');
-    const listViewButton = document.getElementById('list-view');
-    const gridViewButton = document.getElementById('grid-view');
-    const productContainer = document.getElementById('product-container');
+const productDataUrl = 'https://cdn.shopify.com/s/files/1/0564/3685/0790/files/multiProduct.json';
+async function fetchProductData() {
+  try {
+    const response = await fetch(productDataUrl);
 
-    let productList = [];
-
-    async function fetchData() {
-        try {
-            const response = await fetch('https://mocki.io/v1/0934df88-6bf7-41fd-9e59-4fb7b8758093');
-            const data = await response.json();
-    
-            // Log the entire API response
-            console.log('API Response:', data);
-    
-            // Check if 'data' contains a property with the 'products' array
-            const products = data && (data.products || data.data?.products);
-    
-            if (!products || !Array.isArray(products)) {
-                console.error('Invalid data structure in API response');
-                return;
-            }
-    
-            productList = products;
-            renderProducts(productList);
-        } catch (error) {
-            console.error('Error fetching data:', error);
-        }
-    }
-    
-
-    async function fetchData() {
-        try {
-            const response = await fetch('https://mocki.io/v1/0934df88-6bf7-41fd-9e59-4fb7b8758093');
-            const data = await response.json();
-    
-            // Log the entire API response for debugging
-            console.log('API Response:', data);
-    
-            // Check if 'data' contains a property with the 'products' array
-            const products = data && (data.products || data.data?.products);
-    
-            if (!products || !Array.isArray(products)) {
-                // If 'products' is still not valid, try to directly use 'data' as products
-                if (Array.isArray(data)) {
-                    console.warn('Using data directly as products:', data);
-                    productList = data;
-                } else {
-                    console.error('Invalid data structure in API response');
-                    return;
-                }
-            } else {
-                productList = products;
-            }
-    
-            renderProducts(productList);
-        } catch (error) {
-            console.error('Error fetching data:', error);
-        }
-    }
-    
-    function createProductCard(product) {
-        const card = document.createElement('div');
-        card.classList.add('card');
-        card.innerHTML = `
-            <img src="${product.image}" alt="${product.title}">
-            <h3>${product.title}</h3>
-            <p>${product.vendor}</p>
-            <p>Price: $${product.price}</p>
-            <p>Compare at Price: $${product.compareAtPrice}</p>
-            <p>Discount: ${calculateDiscount(product.price, product.compareAtPrice)}%</p>
-            <button>Add to Cart</button>
-        `;
-        return card;
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status} - ${response.statusText}`);
     }
 
-    function calculateDiscount(price, compareAtPrice) {
-        const discount = ((compareAtPrice - price) / compareAtPrice) * 100;
-        return discount.toFixed(2);
+    const data = await response.json();
+
+    if (!data || !Array.isArray(data.categories)) {
+      throw new Error('Invalid data format. "categories" property not found.');
     }
 
-    searchInput.addEventListener('input', () => {
-        const searchTerm = searchInput.value.toLowerCase();
-        const filteredProducts = productList.filter(product =>
-            product.variants.some(variant => variant.toLowerCase().includes(searchTerm))
-        );
-        renderProducts(filteredProducts);
-    });
+    return data.categories;
+  } catch (error) {
+    console.error('Error fetching product data:', error.message);
+    return [];
+  }
+}
 
-    listViewButton.addEventListener('click', () => {
-        console.log('Switching to List View');
-        productContainer.classList.remove('grid-view');
-        productContainer.classList.add('list-view');
-        renderProducts(productList); // Render products after changing the view
-    });
+async function renderProducts(category) {
+  const productContainer = document.getElementById('productCardContainer');
 
-    gridViewButton.addEventListener('click', () => {
-        console.log('Switching to Grid View');
-        productContainer.classList.remove('list-view');
-        productContainer.classList.add('grid-view');
-        renderProducts(productList); // Render products after changing the view
-    });
+  if (!productContainer) {
+    console.error('Product container not found');
+    return;
+  }
 
-    fetchData();
-});
+  productContainer.innerHTML = '';
+
+  const categories = await fetchProductData();
+
+  const selectedCategory = categories.find(cat => cat.category_name.toLowerCase() === category.toLowerCase());
+
+  if (!selectedCategory || !Array.isArray(selectedCategory.category_products)) {
+    console.warn(`No products found for category: ${category}`);
+    return;
+  }
+
+  selectedCategory.category_products.forEach(product => {
+    const discountPercentage = Math.round(((parseInt(product.compare_at_price) - parseInt(product.price)) / parseInt(product.compare_at_price)) * 100);
+
+    const productCard = document.createElement('div');
+    productCard.className = 'product-card-item';
+
+    productCard.innerHTML = `
+      <img class="product-image" src="${product.image}" alt="${product.title}">
+      <div class="product-details">
+        <div class="badge">${product.badge_text || ''}</div>
+        <h3>${product.title}</h3>
+        <p>Vendor: ${product.vendor}</p>
+        <p>Price: $${product.price}</p>
+        <p>Compare at Price: $${product.compare_at_price}</p>
+        <p>${discountPercentage}% off</p>
+        <button class="add-to-cart-button">Add to Cart</button>
+      </div>
+    `;
+
+    productContainer.appendChild(productCard);
+  });
+}
+
+function filterProducts(category) {
+  renderProducts(category);
+}
+
+// Initial render
+renderProducts('Men');
